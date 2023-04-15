@@ -1,13 +1,13 @@
 #!/bin/bash
 ourdir="$(dirname "$(readlink -f "$0")")"
-. $ourdir/settings
+. $ourdir/settings.sh
 . "$ourutilsdir/fn.readcountdown"
 
 echo "Creating data dir: $dir_data"
 mkdir -p "$dir_data"
 
 echo
-cat <<-"EOT"
+cat <<-EOT
 	Writing blur values to: $fn_blur"
 	(Lower is more blurry)"
 	(Also, you can ignore the 'Blurry' label.

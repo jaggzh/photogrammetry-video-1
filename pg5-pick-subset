@@ -1,0 +1,83 @@
+#!/bin/bash
+ourdir="$(dirname "$(readlink -f "$0")")"
+. $ourdir/settings.sh
+. $ourutilsdir/bansi.sh
+
+ignore_missing=false
+force_overwrite=false
+ln_opts=()
+count=0
+usage() {
+	cat <<-EOT;
+		Usage: $ourname {count} [-i] [-f]
+		Picks a subset of files from non-blurry dir:
+		    $dir_blur_approve
+		Symlinks them from raw dir:
+		    $dir_origframes
+		Into
+		    $dir_subset
+		-f Forces symlink overwrite
+		-i Ignores missing images from $dir_blur_approve
+		    (will not attempt to add extras to make up for it)
+	EOT
+	exit;
+}
+
+while getopts "if" opt; do
+	case $opt in
+		i)	ignore_missing=true ;;
+		f)	force_overwrite=true;
+			ln_opts=(-f)
+			;;
+		\?) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
+	esac
+done
+shift $((OPTIND-1))
+if [ -n "$1" ]; then count="$1";
+else usage; fi
+
+echo "Creating subset dir of symlinks: $dir_subset"
+mkdir -p "$dir_subset"
+
+readarray -t files < <(find "$dir_blur_approve" -type l -printf '%f\n')
+echo "Total files to pull from: ${#files[@]}"
+cd "$dir_subset" || {
+	echo "Cannot chdir to $dir_subset" >&2;
+	exit;
+}
+linked=0
+missing=0
+totorig=${#files[@]}
+skip=$(bc <<<"($totorig-1) / $count")
+echo "Skip value: $skip"
+i=-1
+while true; do
+	i=$((i+1))
+	curidx=$(printf '%.0f' "$(bc <<<"$i * $skip")")
+	target=${files[curidx]}
+	if (( $(bc <<<"$curidx > $totorig") )); then
+		break;
+	fi
+	target="../$dir_origframes/${files[curidx]}"
+	if [[ ! -f "$target" ]]; then
+		echo "No file found at: $target" >&2
+		if [[ "$ignore_missing" != true ]]; then
+			echo " -f not specified so we will not continue" >&2
+			exit
+		fi
+		missing=$((missing+1))
+	else
+		# echo ln -s "${ln_opts[@]}" "$target"
+		ln -s "${ln_opts[@]}" "$target"
+		linked=$((linked+1))
+	fi
+done
+
+cat <<-EOT
+	      Total files linked: $linked
+	Skipped (missing target): $missing
+	          Total original: $totorig
+	            See files in: $dir_subset
+EOT
+
+

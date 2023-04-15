@@ -1,0 +1,91 @@
+#!/bin/bash
+ourdir="$(dirname "$(readlink -f "$0")")"
+. $ourdir/settings.sh
+. "$ourutilsdir/fn.readcountdown"
+
+ignore_missing=false
+force_overwrite=false
+quality=99
+usage() {
+	cat <<-EOT;
+		Usage: $ourname [options]
+		Converts subset of images from:
+		    $dir_subset
+		Into TIFFs and stores them in:
+		    $dir_pg
+		-h This help
+		-q Quality (not used. was for jpg but we're doing tif)
+		-f Forces overwrite
+		-i Ignores missing images from $dir_subset
+	EOT
+	exit;
+}
+
+while getopts "hifq:" opt; do
+	case $opt in
+		h)	usage; exit ;;
+		q)	quality="${OPTARG}" ;;
+		i)	ignore_missing=true ;;
+		f)	force_overwrite=true ;;
+		\?) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
+	esac
+done
+shift $((OPTIND-1))
+
+echo "Creating images dir: $dir_pg"
+mkdir -p "$dir_pg"
+
+readarray -t files < <(find "$dir_subset" -type l -printf '%f\n' | sort -n)
+echo "Total files to convert: ${#files[@]}"
+
+echo "Use -h for help" >&2
+readcountdown_noecho 5 ans "Proceeding in 5s (CTRL-C to abort)..."
+echo
+
+converted=0
+missing=0
+skipped=0
+totorig=${#files[@]}
+i=0
+for fn in "${files[@]}"; do
+	i=$((i+1))
+	fnout="${fn%.*}.tif"
+	dst="$dir_pg/$fnout"
+	src="$dir_subset/$fn"
+	if [[ ! -f "$src" ]]; then
+		echo "No file found at: $src" >&2
+		if [[ "$ignore_missing" != true ]]; then
+			echo " -f not specified so we will not continue" >&2
+			exit
+		fi
+		missing=$((missing+1))
+	else
+		# echo convert "$src" 
+		if [[ -f "$dst" && "$force_overwrite" != true ]]; then
+			echo "  Skipping existing: $dst"
+			skipped=$((skipped+1))
+		else
+			echo "[$i / $totorig] convert '$src' -compress LZW '$dst'"
+			convert "$src" -compress LZW "$dst"
+			converted=$((converted+1))
+		fi
+	fi
+done
+
+cat <<-EOT
+       Total files converted: $converted
+       Skipped (missing src): $missing
+      Skipped (no-overwrite): $skipped
+              Total original: $totorig
+                     Quality: $quality
+                See files in: $dir_pg
+EOT
+if find "$dir_pg" -maxdepth 1 -type f -print -quit | grep -q '.'; then
+	ls -lgG "$dir_pg" | head -3
+	echo " ..."
+	ls -lgG "$dir_pg" | tail -3
+else
+	echo "No files in $dir_pg/"
+fi
+
+

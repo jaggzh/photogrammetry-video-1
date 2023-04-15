@@ -22,7 +22,9 @@ opt_blur=False
 opt_preview=False
 
 image_list=None
-blurf = open("blur.log", "w")
+blur_log_fn="blur.log"
+print(f"Creating backup log: {blur_log_fn}", file=sys.stderr)
+blurf = open(blur_log, "w")
 
 blurar = []
 

@@ -1,0 +1,39 @@
+#!/bin/bash
+ourdir="$(dirname "$(readlink -f "$0")")"
+. $ourdir/settings.sh
+. $ourutilsdir/bansi.sh
+. "$ourutilsdir/fn.readcountdown"
+
+if [[ "$#" -lt 1 ]]; then
+	cat <<-EOT;
+		Usage: $ourname {reference_image}
+		Sets $dir_pg/* exif data from given reference image
+	EOT
+	exit;
+fi
+ref="$1"
+
+# echo "Updating tags in: $fn_exif_tags_settable"
+# exit
+echo
+echo
+echo
+echo "Working directly on: $dir_pg/*"
+echo
+echo "Tags from reference image $ref:"
+exiftool -@ "$fn_exif_tags_settable" "$ref" | sed -e 's/^/  /'
+cat <<EOT;
+
+$bgblue${whie} Running:  $rste
+  ${whie}exiftool -tagsFromFile "$ref" \\
+    -@ "$fn_exif_tags_settable" \\
+    -ext tif \\
+    -r "$dir_pg"$rste
+EOT
+echo
+readcountdown_noecho 20 ans "${brede}Proceeding in 20s (CTRL-C to abort)...$yele"
+echo "$rste"
+exiftool -tagsFromFile "$ref" \
+	-@ "$fn_exif_tags_settable" \
+	-ext tif \
+	-r "$dir_pg"

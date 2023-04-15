@@ -1,0 +1,87 @@
+#!/bin/bash
+ourdir="$(dirname "$(readlink -f "$0")")"
+. $ourdir/settings.sh
+. $ourutilsdir/bansi.sh
+
+ignore_missing=false
+force_overwrite=false
+ln_opts=()
+usage() {
+	cat <<-EOT;
+		Usage: $ourname {blur_value} [-f]
+		 *         Uses blur.txt: $fn_blur
+		Will symlink all non-blurry (image values above given)
+		  into $dir_blur_approve
+		-f Forces symlink overwrite
+		-i Ignores missing images
+		   (ie. one listed in blur.txt may have been removed 
+		    from $dir_blur_approve. We normally error out.)
+	EOT
+	exit;
+}
+
+while getopts "if" opt; do
+	case $opt in
+		i)	ignore_missing=true ;;
+		f)	force_overwrite=true;
+			ln_opts=(-f)
+			;;
+		\?) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
+	esac
+done
+shift $((OPTIND-1))
+if [ -n "$1" ]; then thresh="$1";
+else usage; fi
+
+if [[ ! -f "$fn_blur" || ! -r "$fn_blur" ]]; then
+	echo "Cannot read blur txt: $fn_blur" >&2
+	exit
+fi
+
+echo "Creating non-blurry dir of symlinks: $dir_blur_approve"
+mkdir -p "$dir_blur_approve"
+
+readarray -t lines < <(cat "$fn_blur")
+echo "Lines read: ${#lines[@]}"
+
+cd "$dir_blur_approve" || {
+	echo "Cannot chdir to $dir_blur_approve" >&2;
+	exit;
+}
+total=0
+linked=0
+missing=0
+blurry=0
+for line in "${lines[@]}"; do
+	# echo "Line: $line"
+	total=$((total+1))
+	blur=$(printf '%s' "$line" | cut -d ' ' -f 1)
+	fn=$(printf '%s' "$line" | cut -d ' ' -f 2)
+	echo "  $blur  <-- $fn"
+	target="../$fn"
+	if [[ ! -f "$target" ]]; then
+		echo "No file found at: $target" >&2
+		if [[ "$ignore_missing" != true ]]; then
+			echo " -f not specified so we will not continue" >&2
+			exit
+		fi
+		missing=$((missing+1))
+	else
+		if (( $(printf '%s >= %s\n' "$blur" "$thresh" | bc -l) )); then
+			echo "  $gree ln -s ${ln_opts[@]}" "$target""$rste"
+			ln -s "${ln_opts[@]}" "$target"
+			linked=$((linked+1))
+		else
+			echo "  $brede Skipping $target$rste"
+			blurry=$((blurry+1))
+		fi
+	fi
+done
+
+cat <<-EOT
+	      Total files linked: $linked
+	    Skipped (too blurry): $blurry
+	Skipped (missing target): $missing
+	  Total blur.txt entries: $total
+EOT
+

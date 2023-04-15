@@ -1,6 +1,6 @@
 #!/bin/bash
 ourdir="$(dirname "$(readlink -f "$0")")"
-. $ourdir/settings
+. $ourdir/settings.sh
 
 if [[ "$#" -lt 1 ]]; then
 	cat <<-"EOT"
