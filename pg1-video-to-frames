@@ -1,0 +1,25 @@
+#!/bin/bash
+ourdir="$(dirname "$(readlink -f "$0")")"
+. $ourdir/settings
+
+if [[ "$#" -lt 1 ]]; then
+	cat <<-"EOT"
+		Usage: $ourname video.mp4 [framecount]
+		* To just show information, don't specify a framecount
+	EOT
+	exit
+fi
+
+if [[ "$#" -eq 1 ]]; then
+	"$bin_vid" "$vidfn"
+	exit
+fi
+
+if [[ "$#" -gt 2 ]]; then
+	echo "Writing frames to: $dir_origframes/#####.png (ie. %05d.png)"
+fi
+mkdir -p "$dir_origframes"
+
+vidfn="$1"
+fc="$2" # Vid and framecount are flipped in our video-to-frames script
+"$bin_vid" "$fc" "$vidfn" "$dir_origframes/%05d.png"

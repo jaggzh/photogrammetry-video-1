@@ -1,0 +1,32 @@
+#!/bin/bash
+ourdir="$(dirname "$(readlink -f "$0")")"
+. $ourdir/settings
+. "$ourutilsdir/fn.readcountdown"
+
+echo "Creating data dir: $dir_data"
+mkdir -p "$dir_data"
+
+echo
+cat <<-"EOT"
+	Writing blur values to: $fn_blur"
+	(Lower is more blurry)"
+	(Also, you can ignore the 'Blurry' label.
+	 We'll review and prune next.)
+EOT
+if [[ -f "$fn_blur" ]]; then
+	# Ex: readcountdown1 5 inp '(d)elete (anything else exits)'
+	echo
+	ans=''
+	readcountdown_noecho "$yn_prompt_timeout" \
+		ans "$fn_blur exists. Overwrite (y/N)"
+	if [[ "$ans" = y || "$ans" = Y ]]; then
+		echo Yes
+	else
+		echo No; echo 'Aborting'; exit
+	fi
+fi
+	
+#s0 "$bin_blurdet" -f "$dir_origframes" | s0 tee "$fn_blur"
+
+echo "Created: $fn_blur"
+ls -lgG "$fn_blur"

@@ -1,0 +1,51 @@
+#!/bin/bash
+ffmpeg_opts=(-hide_banner)
+
+if [[ "$#" != 1 && "$#" != 3 ]]; then
+	echo "Usage:"
+	echo " Get vid INFO: video-to-frames video.mp4"
+	echo "      Extract: video-to-frames {Desired frame count} video.ext dir/out-%05d.jpg"
+	exit
+fi
+
+if [[ "$#" == 1 ]]; then
+	info=1
+	in_video="$1"
+else
+	info=0
+	count="$1"
+	in_video="$2"
+	out_format="$3"
+fi
+
+#ffmpeg -hide_banner -i "$in_video" "$out_format"
+echo "     Video filename: $in_video"
+dur=$(ffmpeg -i "$in_video" 2>&1 | grep Duration |
+	sed -e 's/^.*Duration: //; s/,.*$//; s/:/*60*60 + /; s/:/*60 + /;')
+echo "Duration from video: $dur"
+secs=$(printf "%s\n" "$dur" | bc)
+echo "            Seconds: $secs"
+#Duration: 00:01:07.44, start: 0.000000, bitrate: 17295 kb/s
+
+#    Stream #0:0(und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709), 1920x1080, 17224 kb/s, 23.99 fps, 24 tbr, 600 tbn, 1200 tbc (default)
+fps=$(ffmpeg -i "$in_video" 2>&1 | grep ' fps,' |
+	sed -e 's/^.*, \([0-9.]\+\) fps,.*$/\1/')
+printf "                        FPS: $fps\n"
+frames=$(printf "%s * %s\n" "$fps" "$secs" | bc)
+printf "         Total video frames: $frames\n"
+framesi="${frames%.*}"
+printf "   Total video frames (int): $framesi\n"
+
+if [[ "$info" = 1 ]]; then exit; fi
+printf "           Requested frames: $count\n"
+if [[ "$count" -gt "$framesi" ]]; then
+	count="$framesi"
+	printf "  Requested > total frames available. Setting count to $count\n"
+fi
+
+every_n=$(printf "scale=0\n%s / %s\n" "$frames" "$count" | bc)
+printf "Taking every $every_n frames\n"
+
+echo ffmpeg "${ffmpeg_opts[@]}" -i "$in_video" -vf "select=not(mod(n\,$every_n))" -vsync vfr -q:v 4 "$out_format"
+ffmpeg "${ffmpeg_opts[@]}" -i "$in_video" -vf "select=not(mod(n\,$every_n))" -vsync vfr -q:v 2 "$out_format"
+exit

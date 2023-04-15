@@ -1,0 +1,235 @@
+#!/usr/bin/env python
+import sys
+import argparse
+import numpy as np
+import shutil
+import os
+import time
+from PIL import Image
+import matplotlib
+matplotlib.use('GTK3Agg')
+import matplotlib.pyplot as plt
+
+ourscript = os.path.realpath(__file__)
+ourdir = os.path.split(ourscript)[0]
+sys.path.append(os.path.join(ourdir, "pylib"))
+import pylib.kbnb as kbnb
+from pylib.bansi import *
+
+fn_blur='gendata/blur.txt'
+dir_imgs='1-frames-raw'
+
+termwidth, termheight = shutil.get_terminal_size()
+pyplot_frame=None
+disable_events=False
+cur_fn_prev=None
+
+parser = argparse.ArgumentParser(
+		description='Display a histogram of numbers read from stdin.')
+parser.add_argument('-n', '--bins', type=int, default=termheight-14,
+		help='Number of bins in the histogram')
+parser.add_argument('-f', '--blurfile', type=str, default=fn_blur,
+		help='Path to blur.txt')
+parser.add_argument('-d', '--imgsdir', type=str, default=dir_imgs,
+		help='Directory of images referenced in blur.txt')
+#parser.add_argument('fn', nargs='?', default=fn_blur, help='Unused')
+args = parser.parse_args()
+
+inf=open(args.blurfile, 'rt')
+numbers = []
+bluritems = []
+for line in inf:
+	blurval,fn = line.split()[0:2]
+	numbers.append(float(blurval))
+	# print(f'{blurval} - {fn}')
+	bluritems.append( {
+		'blur': float(blurval),
+		'fn': fn
+	} )
+	bluritems.sort(key=lambda x: x['blur'])
+
+# Create histogram
+hist, bins = np.histogram(numbers, bins=args.bins)
+
+# Handle min max sizes for display alignment:
+rangemaxlen=max([len(f'{b:.3f}') for b in bins])
+bcmaxlen=max([len(str(h)) for h in hist])  # bincounts
+# print(f"Final mex len: {rangemaxlen}")
+# sys.exit()
+
+# Calculate maximum width of histogram
+# leave space for bin range labels, histogram bars, and counts
+max_width = termwidth - rangemaxlen*2 - bcmaxlen - 12
+
+# Determine scaling factor for histogram bars
+max_count = max(hist)
+if max_count > max_width:
+	scaling_factor = max_width / max_count
+else:
+	scaling_factor = 1
+
+def preview_bin(bins=None, hist=None, curbini=None, curblur=None, curbluritemi=0):
+	rad=2
+	for i in range(max(0,              curbluritemi-rad),
+	               min(len(bluritems), curbluritemi+rad+1)):
+		bi=bluritems[i]
+		fgblur=fgfn=''
+		if i==curbluritemi:
+			ind='>>'
+			fgblur=yel; fgfn=whi;
+		else:
+			if bi['blur'] < bins[curbini]:
+				ind='^ '
+				fgblur=bbla; fgfn=gra;
+			elif curbini < len(bins)-1 and bi['blur'] >= bins[curbini+1]:
+				ind='v '
+				fgblur=bbla; fgfn=gra;
+			else:
+				ind='  '
+				fgblur=bbla; fgfn=gra;
+		print(f"  {ind}  {fgblur}{bi['blur']:.3f}{rst} -- {fgfn}{bi['fn']}{rst}")
+
+def find_bluritem_idx(blur):
+	for i in range(0, len(bluritems)):
+		if bluritems[i]['blur'] >= blur:
+			return i
+	raise(ValueError(f"Strange error. No valid blur found for value {blur}"))
+
+def events_handler():
+	global pyplot_frame
+	if not disable_events:
+		if pyplot_frame is not None:
+			# Catch if window was closed
+			if pyplot_frame in plt.get_fignums():
+				fig.canvas.flush_events()
+			else:
+				pyplot_frame = None
+
+def show_image(i):
+	global pyplot_frame
+	global disable_events
+	global cur_fn_prev
+	disable_events=True
+	# kbnb.reset_flags()
+	imgsdir=args.imgsdir
+	bl=bluritems[i]
+	fn = bl['fn']
+	if not os.path.isfile(fn):
+		fn = os.path.join(imgsdir, bl['fn'])
+	if not os.path.isfile(fn):
+		raise(FileNotFoundError(f"Couldn't find image {fn}"))
+	img = Image.open(fn)
+
+	# If we have to pop up a new image frame:
+	if pyplot_frame is None or pyplot_frame not in plt.get_fignums():
+		plt.ion()
+		print(f"{yel}[Loading {fn}]{rst}", flush=True)
+		pyplot_frame = plt.imshow(img)
+		plt.show()
+	else: pyplot_frame.set_data(img)
+	plt.pause(0.1)
+	cur_fn_prev=fn
+	disable_events=False
+	# kbnb.init(cb=events_handler)
+
+curbini=0
+curlevel=0
+curblur=min(bins)
+curbluritemi=0
+debug=False
+showimages=False
+
+kbnb.init(cb=events_handler)
+while True:
+	cls()
+	print(); print(); print(); print();
+	statusline = f'{bgblu}{bgre} curbluritemi:{curbluritemi}'
+	if cur_fn_prev is not None:
+		statusline += f' File preview: {cur_fn_prev}'
+	statusline += cllr + rst
+	curblur = bins[curbini]
+	for i in range(len(hist)):
+		rangefmt = '{:' + str(rangemaxlen) + '.3f} - {:' + str(rangemaxlen) + '.3f}'
+		# print("Format: ", rangefmt)
+		bin_str = rangefmt.format(bins[i], bins[i+1])
+		bar_width = int(hist[i] * scaling_factor)
+		bar_str = '#' * bar_width
+		print('{:s} {:s} |{:{}s}| {}'.format(
+			'>' if i==curbini else ' ',
+			bin_str, bar_str, max_width, hist[i]
+		))
+		#print('{:12s} |{:{}s}| {}'.format(bin_str, bar_str, max_width, hist[i]))
+		if curlevel>0:
+			if i==curbini:
+				preview_bin(bins=bins, hist=hist,
+						curbini=curbini,
+						curblur=curblur,
+						curbluritemi=curbluritemi)
+	sc=bcya
+	r=rst
+	print(f"({sc}Up{r})/({sc}Down{r}) - Select a bin to examine |", end='')
+	print(f" ({sc}Right{r})/({sc}Left{r}) - Enter/exit bin")
+	print(f"({sc}Enter{rst} Preview image |")
+	print(f" ({sc}q{r})uit | ({sc}^D{r})ebug")
+	print(statusline)
+	print(f"Current blur selection [{yel}{curblur:.3f}{rst}]: ", end='', flush=True)
+	key = kbnb.waitkey('')
+	if key == 'q': print("Quit"); break
+	elif ord(key) == 4:
+		debug=not debug
+		print(f"Debug {'on' if debug else 'off'}")
+		time.sleep(.5)
+	elif ord(key) == 10 or key == 'i':
+		showimages=not showimages
+		show_image(curbluritemi)
+	elif key == 'up' or key == 'k':
+		if curlevel == 0:
+			if curbini<1: print("At first bin")
+			else:
+				print("Up")
+				curbini -= 1
+				curbluritemi = find_bluritem_idx(bins[curbini])
+		else:
+			if curbluritemi < 1: print("At start of all items"); time.sleep(.5)
+			else:
+				curbluritemi -= 1 
+				curblur = bluritems[curbluritemi]['blur']
+				if bluritems[curbluritemi]['blur'] < bins[curbini]:
+					if curbini < 1: print("Nothing earlier"); time.sleep(.5)
+					else:
+						curbini -= 1
+						print("Up")
+	elif key == 'down' or key == 'j':
+			if curlevel == 0:
+				if curbini >= len(hist)-1:
+					print("At last bin"); time.sleep(.5)
+				else:
+					print("Down")
+					curbini += 1
+					curbluritemi = find_bluritem_idx(bins[curbini])
+			else:
+				if curbluritemi >= len(bluritems)-1:
+					print("At end of all items"); time.sleep(.5)
+				else:
+					curbluritemi += 1 
+					curblur = bluritems[curbluritemi]['blur']
+					if bluritems[curbluritemi]['blur'] >= bins[curbini+1]:
+						if curbini >= len(bins)-1:
+							print("No higher bins."); time.sleep(.5)
+						else:
+							curbini += 1
+							print("Down")
+	elif key == 'right' or key == 'l':
+		if curlevel < 1:
+			print("Right")
+			curlevel += 1
+		else: print("No deeper"); time.sleep(.5)
+	elif key == 'left' or key == 'h':
+		if curlevel > 0:
+			print("Left")
+			curlevel -= 1
+		else: print("At home"); time.sleep(.5)
+	else:
+		print(f"[Unknown Key: '{key}']", end='')
+
+kbnb.reset_flags()

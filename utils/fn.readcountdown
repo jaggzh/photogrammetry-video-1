@@ -1,0 +1,30 @@
+#!/bin/bash
+readcountdown_noecho () {
+	# Ex: readcountdown1 5 inp '(d)elete (anything else exits)'
+	# gives 5 seconds and sets inp if anything (even enter) entered
+	# returns 0 on success, 1 for timeout
+	if [[ "$#" -lt 3 ]]; then
+		echo "Usage: readcountdown_noecho seconds variable message"
+		return 1
+	fi
+	local secs="$1"
+	local var="$2"
+	local msg="$3"
+	local uinp
+	for ((i=secs; i>0; i--)); do
+		unset "$var"
+		read -s -r -n 1 -t 1 -p "$msg (${i}s): " uinp
+		readres="$?"
+		if [[ "$readres" -gt 127 ]]; then
+			if [[ "$i">1 ]]; then
+				echo -ne '\r'
+			fi
+		elif [[ "$readres" -ne 0 ]]; then # unknown error
+			echo "Error in read: $!"; return "$readres"
+		else
+			eval "export $var='$uinp'"
+			return 0
+		fi
+	done
+	return 128
+}

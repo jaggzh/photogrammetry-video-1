@@ -1,0 +1,26 @@
+#!/bin/bash # For syntax highlighting :}
+# (this is . sourced by other scripts)
+
+# This $0 references the CALLER SCRIPT's name
+ourname="${0##*/}"
+
+# Other settings:
+ourutilsdir="$ourdir/utils"
+bin_vid="$ourutilsdir/video-to-frames"
+bin_blurdet="$ourutilsdir/blur-detect.py"
+
+dir_origframes='1-frames-raw'   # Extracted frames
+dir_data='gendata'              # Generated data
+
+fn_blur="$dir_data/blur.txt"
+
+if [[ "$*" == *"-v"* ]]; then
+	echo "This script name    : $ourname"
+	echo "Pipeline scripts dir: $ourdir"
+	echo "Pipeline utils dir  : $ourname"
+fi
+
+s0 () { stdbuf -i0 -o0 "$@"; }
+
+# User settings:
+yn_prompt_timeout=3
