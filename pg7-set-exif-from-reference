@@ -4,36 +4,68 @@ ourdir="$(dirname "$(readlink -f "$0")")"
 . $ourutilsdir/bansi.sh
 . "$ourutilsdir/fn.readcountdown"
 
-if [[ "$#" -lt 1 ]]; then
+dstdir="$dir_pg"
+ext="tif"
+
+usage() {
 	cat <<-EOT;
-		Usage: $ourname {reference_image}
+		Usage: $ourname {reference_image} [options]
 		Sets $dir_pg/* exif data from given reference image
+
+		Options:
+		-e ext   Extension of files to modify (default: $ext)
+		-d dir   Specify alternate dir of images to modify exif info
+		         (so it won't use $dir_pg)
 	EOT
 	exit;
+}
+
+while getopts "hd:e:" opt; do
+	case $opt in
+		h)	usage; exit ;;
+		d)	dstdir="${OPTARG}" ;;
+		e)	ext="${OPTARG}" ;;
+		\?) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
+	esac
+done
+shift $((OPTIND-1))
+if [[ "$#" -lt 1 ]]; then
+	echo "We need a reference image provided as a plain argument" >&2
+	exit
+else
+	ref="$1"
 fi
-ref="$1"
 
 # echo "Updating tags in: $fn_exif_tags_settable"
 # exit
 echo
 echo
 echo
-echo "Working directly on: $dir_pg/*"
+echo "Working directly on: $dstdir/*"
 echo
 echo "Tags from reference image $ref:"
 exiftool -@ "$fn_exif_tags_settable" "$ref" | sed -e 's/^/  /'
 cat <<EOT;
 
+dstdir="$dstdir"
 $bgblue${whie} Running:  $rste
   ${whie}exiftool -tagsFromFile "$ref" \\
     -@ "$fn_exif_tags_settable" \\
-    -ext tif \\
-    -r "$dir_pg"$rste
+    -ext "$ext" \\
+    -r "$dstdir"$rste
 EOT
 echo
 readcountdown_noecho 20 ans "${brede}Proceeding in 20s (CTRL-C to abort)...$yele"
 echo "$rste"
 exiftool -tagsFromFile "$ref" \
 	-@ "$fn_exif_tags_settable" \
-	-ext tif \
-	-r "$dir_pg"
+	-ext "$ext" \
+	-r "$dstdir"
+echo
+ls -l "$dstdir" | head
+read -p "Remove *_original (y/N)?" ans
+if [[ "$ans" = y || "$ans" = 'Y' ]]; then
+	rm -f "$dstdir/*original"
+else
+	echo "Not removing"
+fi
