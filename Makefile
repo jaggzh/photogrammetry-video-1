@@ -20,4 +20,5 @@ vi:
 		~/bin/histotext \
 		utils/blur-detect.py \
 		utils/video-to-frames \
-		utils/fn.readcountdown
+		utils/fn.readcountdown \
+		utils/face-mask.py

@@ -5,67 +5,148 @@ ourdir="$(dirname "$(readlink -f "$0")")"
 . "$ourutilsdir/fn.readcountdown"
 
 dstdir="$dir_pg"
-ext="tif"
+dstdir=""
+opts_ext=()
+opts_recursive=()
+opts_dstdir=()
+use_pipeline=
+dry_run=
+opts_overwrite=(-overwrite_original)
+opts_verbose=(-progress)
+opts_remove_orientation=()
+prereview_count=5
+postreview_count=3
 
 usage() {
 	cat <<-EOT;
-		Usage: $ourname {reference_image} [options]
-		Sets $dir_pg/* exif data from given reference image
+
+		Usage: $ourname [options] {reference_image}
+		Methods of running:
+		  1. Default pipeline-dir run:
+		    $ourname ref.png -p
+		      Sets $dir_pg/* exif data from the given reference image
+			  (-p says ^^^ to use the project image pipeline)
+		  2. Pick a dir of images to modify:
+		    $ourname ref.png -d folder_of_images/
+		      Transfers exif tags from ref.png to folder_of_images/*
+		  3. Pick a bunch of images:
+		    $ourname ref.png somewhere/*.jpg
+		    $ourname ref.png somewhere/*.png
+		    ...etc.
+		      Transfers exif tags from ref.png to the provided images
 
 		Options:
-		-e ext   Extension of files to modify (default: $ext)
-		-d dir   Specify alternate dir of images to modify exif info
-		         (so it won't use $dir_pg)
+		-h       This help
+		-p       Use pipeline dir
+		           $dir_pg
+		         Because we default to the pipeline directory, for
+				 convenience, we won't run unless you specify either
+				 this option, or -d or a bunch of images
+		-e ext   Extension of files to modify
+		         Default: none. All given images will be processed
+		-R       Remove rotation exif tag (-Orientation=)
+		-r       Recurse in -d folder (default, no recursion)
+		-n       Dry run: Just say what we're going to do
+		-q       Don't display progress (exiftool --progress)
+		-O       DON'T overwrite original (keep backups)
+		         (Default uses exiftool -overwrite_original)
 	EOT
 	exit;
 }
 
-while getopts "hd:e:" opt; do
+while getopts "hpn:e:rOqR" opt; do
 	case $opt in
 		h)	usage; exit ;;
-		d)	dstdir="${OPTARG}" ;;
-		e)	ext="${OPTARG}" ;;
+		p)  use_pipeline=1; dstdir="$dir_pg" ;;
+		n)  dry_run=1 ;;
+		e)	opts_ext=("-ext" "${OPTARG}") ;;
+		r)  opts_recursive=(-r) ;;
+		O)  opts_overwrite=() ;;
+		q)  opts_verbose=() ;;
+		R)  opts_remove_orientation=(-Orientation=) ;;
 		\?) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
 	esac
 done
 shift $((OPTIND-1))
 if [[ "$#" -lt 1 ]]; then
-	echo "We need a reference image provided as a plain argument" >&2
+	echo "We need a reference image provided as a plain argument (-h for help)" >&2
+	echo "Use -p for the normal photogrammetry pipeline." >&2
+	echo "Example: $ourname -p IMG1000.jpg"
+	echo "(But do see -h)"
 	exit
 else
 	ref="$1"
+	shift
+	all_images=("$@")
 fi
 
 # echo "Updating tags in: $fn_exif_tags_settable"
 # exit
 echo
-echo
-echo
-echo "Working directly on: $dstdir/*"
-echo
-echo "Tags from reference image $ref:"
-exiftool -@ "$fn_exif_tags_settable" "$ref" | sed -e 's/^/  /'
-cat <<EOT;
-
-dstdir="$dstdir"
-$bgblue${whie} Running:  $rste
-  ${whie}exiftool -tagsFromFile "$ref" \\
-    -@ "$fn_exif_tags_settable" \\
-    -ext "$ext" \\
-    -r "$dstdir"$rste
-EOT
-echo
-readcountdown_noecho 20 ans "${brede}Proceeding in 20s (CTRL-C to abort)...$yele"
-echo "$rste"
-exiftool -tagsFromFile "$ref" \
-	-@ "$fn_exif_tags_settable" \
-	-ext "$ext" \
-	-r "$dstdir"
-echo
-ls -l "$dstdir" | head
-read -p "Remove *_original (y/N)?" ans
-if [[ "$ans" = y || "$ans" = 'Y' ]]; then
-	rm -f "$dstdir/*original"
+if [[ -n "$use_pipeline" || -n "$dstdir" ]]; then
+	if [[ ${#all_images} -gt 0 ]]; then
+		echo "Not-allowed: Directory (-p or -d) AND files specified." >&2
+		echo "Aborting"
+		exit 1
+	fi
+	if [[ -n "$use_pipeline" ]]; then
+		echo "Working on images in pipeline dir, $dstdir/*"
+	elif [[ -n "$dstdir" ]]; then
+		echo "Working on images in given dir, $dstdir/*"
+	fi
+elif [[ ${#all_images} -lt 1 ]]; then
+	echo "No -d or -p and no images provided. Aborting." >&2
+	exit
 else
-	echo "Not removing"
+	echo "Working on provided images. Count: ${#all_images[@]}"
+	for img in "${all_images[@]}"; do
+		if [[ -d "$img" ]]; then
+			echo "${brede}WARNING: One or more images is a directory.$rste" >&2
+			break
+		fi
+	done
 fi
+if [[ "${#opts_overwrite[@]}" -gt 0 ]]; then
+	echo "${brede}Overwriting original files (not keeping backup as _original)$rste"
+fi
+echo "Using the following tags from reference image $ref:"
+exiftool -@ "$fn_exif_tags_settable" "$ref" | sed -e 's/^/  /'
+
+echo "$bgblue${whie}Running on folders/images:  $rste"
+echo "${whie} exiftool -tagsFromFile \"$ref\" -m \\"
+                                       echo "    -@ \"$fn_exif_tags_settable\" \\"
+((${#opts_ext[@]}))                 && echo "    ${opts_ext[@]} \\"
+((${#opts_recursive[@]}))           && echo "    ${opts_recursive[@]} \\"
+((${#opts_overwrite[@]}))           && echo "    ${opts_overwrite[@]} \\"
+((${#opts_verbose[@]}))             && echo "    ${opts_verbose[@]} \\"
+((${#opts_remove_orientation[@]}))  && echo "    ${opts_remove_orientation[@]} \\"
+echo "    ${whie}{all images here $bgree(${#all_images[@]} of them)$whie}$rste"
+echo
+
+if [[ "$dry_run" = 1 ]]; then
+	echo "${bgrede}${whie}*** Dry run. Not doing anything. ***$rste"
+	echo
+else
+	readcountdown_noecho 20 ans "${brede}Proceeding in 20s (CTRL-C to abort)...$yele"
+	echo "$rste"
+	exiftool -tagsFromFile "$ref" -m \
+        -@ "$fn_exif_tags_settable" \
+		"${opts_ext[@]}" \
+		"${opts_recursive[@]}" \
+		"${opts_dstdir[@]}" \
+		"${opts_overwrite[@]}" \
+		"${opts_verbose[@]}" \
+		"${opts_remove_orientation[@]}" \
+		"${all_images[@]}"
+fi
+
+echo "File summary:"
+ls -ldgG -- "${all_images[@]:0:prereview_count}" | sed -e 's/^/  /'
+echo ...
+if [[ ${#all_images[@]} > "$prereview_count"+1 ]]; then
+	cnt=$((${#all_images[@]} - $prereview_count-1))
+	((cnt > postreview_count)) && cnt=$((postreview_count))
+	ls -ldgG -- "${all_images[@]:(-cnt)}" | sed -e 's/^/  /'
+fi
+echo "${#all_images[@]} requested by you"
+echo "(but see exiftool output to see what was done)"

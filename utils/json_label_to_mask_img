@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+import argparse
+import json
+from PIL import Image, ImageDraw
+import os
+
+def parse_args():
+	parser = argparse.ArgumentParser(description='Convert a JSON mask (from django-labeler) to an image mask, or mask an original image')
+	parser.add_argument('json_file', help='JSON file containing the mask')
+	parser.add_argument('-I', '--invert', action='store_true', help='Invert the mask')
+	parser.add_argument('-m', '--mask', action='store_true', help='Mask original image and write it out')
+	parser.add_argument('-i', '--image', type=str, help='Reference image for size')
+	parser.add_argument('-o', '--output', help='Output file or an *existing* directory')
+	parser.add_argument('-e', '--ext', type=str, help='Extension of output images')
+	parser.add_argument('-n', '--dryrun', action='store_true', help='Just show what we\'d do')
+	return parser.parse_args()
+
+def load_json_file(json_file):
+	with open(json_file, 'r') as f:
+		return json.load(f)
+
+def get_image_filename(json_data, default_name):
+	return json_data.get('image_filename', default_name)
+
+def get_output_path(user_output_path, json_data, default_name, args=None):
+	if not os.path.isdir(user_output_path):
+		return user_output_path
+	else:
+		image_filename = get_image_filename(json_data, default_name)
+		if image_filename is not None:
+			if args.ext is not None:
+				base_name = os.path.basename(image_filename)
+				image_filename, _ = os.path.splitext(base_name)
+				image_filename += "." + args.ext
+			return os.path.join(user_output_path, image_filename)
+		else:
+			return os.path.join(user_output_path, image_filename) + ".png"
+
+def get_image_size(filename):
+	with Image.open(filename) as img:
+		return img.size
+
+def create_mask(json_data, img_fn, invert):
+	width, height = get_image_size(img_fn)
+	mask = Image.new('L', (width, height), 0)
+	draw = ImageDraw.Draw(mask)
+	for label in json_data['labels']:
+		if label['label_type'] == 'polygon':
+			coords = [(p['x'], p['y']) for p in label['regions'][0]]
+			draw.polygon(coords, fill=255)
+	if invert:
+		mask = ImageOps.invert(mask)
+	return mask
+
+def img_fn_from_json(json_file, json_data):
+	path = os.path.split(json_file)[0]
+	if 'image_filename' in json_data:
+		return os.path.join(path, json_data['image_filename'])
+	raise(ValueError("Missing 'image_filename' in json"))
+
+def mask_image(img_fn, mask):
+	img = Image.open(img_fn)
+	result = Image.composite(img, Image.new('RGB', img.size, 'white'), mask)
+	return result
+
+def main():
+	args = parse_args()
+	if args.output is None:
+		raise(ValueError("Missing -o output_dir or output_file"))
+	print(f"Loading json file {args.json_file}")
+	json_data = load_json_file(args.json_file)
+	if args.image is not None:
+		img_fn = args.image
+	else:
+		img_fn = img_fn_from_json(args.json_file, json_data)
+	print(f"Using image size from {img_fn}")
+
+	default_name = args.json_file.split('/')[-1].split('.')[0]
+	output_path = get_output_path(args.output, json_data, default_name, args=args)
+	print(f"Creating mask image internally")
+	if not args.dryrun:
+		mask = create_mask(json_data, img_fn, args.invert)
+	if not args.mask:
+		print(f"Writing mask to {output_path}")
+		if not args.dryrun:
+			mask.save(output_path)
+	else:
+		print(f"Writing masked image to {output_path}")
+		if not args.dryrun:
+			image = mask_image(img_fn, mask)
+			image.save(output_path)
+
+if __name__ == '__main__':
+	main()
