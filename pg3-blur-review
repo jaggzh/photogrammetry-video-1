@@ -99,6 +99,7 @@ def events_handler():
 	global pyplot_frame
 	if not disable_events:
 		if pyplot_frame is not None:
+			plt.pause(0.01)
 			# Catch if window was closed
 			if pyplot_frame in plt.get_fignums():
 				fig.canvas.flush_events()
@@ -169,17 +170,18 @@ while True:
 	r=rst
 	print(f"({sc}Up{r})/({sc}Down{r}) - Select a bin to examine |", end='')
 	print(f" ({sc}Right{r})/({sc}Left{r}) - Enter/exit bin")
-	print(f"({sc}Enter{rst} Preview image |")
+	print(f"({sc}Enter{rst} Preview image |", end='')
 	print(f" ({sc}q{r})uit | ({sc}^D{r})ebug")
 	print(statusline)
 	print(f"Current blur selection [{yel}{curblur:.3f}{rst}]: ", end='', flush=True)
 	key = kbnb.waitkey('')
+	# print(f"KEY: {{{key}}}"); time.sleep(1.5)
 	if key == 'q': print("Quit"); break
-	elif ord(key) == 4:
+	elif key == '^d':
 		debug=not debug
 		print(f"Debug {'on' if debug else 'off'}")
 		time.sleep(.5)
-	elif ord(key) == 10 or key == 'i':
+	elif key == '\n' or key == 'i': # was ord(key) == 10
 		showimages=not showimages
 		show_image(curbluritemi)
 	elif key == 'up' or key == 'k':

@@ -25,8 +25,8 @@ if [[ -f "$fn_blur" ]]; then
 		echo No; echo 'Aborting'; exit
 	fi
 fi
-	
-#s0 "$bin_blurdet" -f "$dir_origframes" | s0 tee "$fn_blur"
+
+s0 "$bin_blurdet" -f "$dir_origframes" | s0 tee "$fn_blur"
 
 echo "Created: $fn_blur"
 ls -lgG "$fn_blur"

@@ -58,6 +58,7 @@ while getopts "hpn:e:rOqR" opt; do
 	case $opt in
 		h)	usage; exit ;;
 		p)  use_pipeline=1; dstdir="$dir_pg" ;;
+		d)  dstdir="${OPTARG}" ;;
 		n)  dry_run=1 ;;
 		e)	opts_ext=("-ext" "${OPTARG}") ;;
 		r)  opts_recursive=(-r) ;;
@@ -122,6 +123,10 @@ echo "${whie} exiftool -tagsFromFile \"$ref\" -m \\"
 ((${#opts_remove_orientation[@]}))  && echo "    ${opts_remove_orientation[@]} \\"
 echo "    ${whie}{all images here $bgree(${#all_images[@]} of them)$whie}$rste"
 echo
+if [[ ${#all_images[@]} -lt 5 ]]; then
+	echo "Showing some image filenames:"
+	echo "  ${all_images[@]}"
+fi
 
 if [[ "$dry_run" = 1 ]]; then
 	echo "${bgrede}${whie}*** Dry run. Not doing anything. ***$rste"

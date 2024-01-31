@@ -17,14 +17,18 @@ import ipdb as pdb
 import os
 import numpy as np
 import math
+import sys
+import shutil
 
 opt_blur=False
 opt_preview=False
 
 image_list=None
 blur_log_fn="blur.log"
-print(f"Creating backup log: {blur_log_fn}", file=sys.stderr)
-blurf = open(blur_log, "w")
+blur_log_bak_fn="blur.log.bak"
+# shutil.copy()
+print(f"We'd like to create a backup log, but we're not: {blur_log_bak_fn}", file=sys.stderr)
+blurf = open(blur_log_fn, "w")
 
 blurar = []
 
