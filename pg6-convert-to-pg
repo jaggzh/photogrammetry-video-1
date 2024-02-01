@@ -6,6 +6,7 @@ ourdir="$(dirname "$(readlink -f "$0")")"
 ignore_missing=false
 force_overwrite=false
 quality=99
+opt_downsample=()
 usage() {
 	cat <<-EOT;
 		Usage: $ourname [options]
@@ -14,6 +15,7 @@ usage() {
 		Into TIFFs and stores them in:
 		    $dir_pg
 		-h This help
+		-s # scale to this (convert -resize #). Takes a number or a %
 		-q Quality (not used. was for jpg but we're doing tif)
 		-f Forces overwrite
 		-i Ignores missing images from $dir_subset
@@ -21,8 +23,14 @@ usage() {
 	exit;
 }
 
-while getopts "hifq:" opt; do
+while getopts "hifq:s:" opt; do
 	case $opt in
+		s)  if ! [[ $OPTARG =~ ^[0-9]+%?$ ]]; then
+				echo "Downsample ($OPTARG) must be a number of percentage" >&2;
+				exit 1;
+			fi;
+			opt_downsample=(-resize "$OPTARG");
+			;;
 		h)	usage; exit ;;
 		q)	quality="${OPTARG}" ;;
 		i)	ignore_missing=true ;;
@@ -66,7 +74,7 @@ for fn in "${files[@]}"; do
 			skipped=$((skipped+1))
 		else
 			echo "[$i / $totorig] convert '$src' -compress LZW '$dst'"
-			convert "$src" -compress LZW "$dst"
+			convert "$src" "${opt_downsample[@]}" -compress LZW "$dst"
 			converted=$((converted+1))
 		fi
 	fi

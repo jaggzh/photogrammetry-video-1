@@ -5,7 +5,6 @@ ourdir="$(dirname "$(readlink -f "$0")")"
 . "$ourutilsdir/fn.readcountdown"
 
 dstdir="$dir_pg"
-dstdir=""
 opts_ext=()
 opts_recursive=()
 opts_dstdir=()
@@ -54,7 +53,7 @@ usage() {
 	exit;
 }
 
-while getopts "hpn:e:rOqR" opt; do
+while getopts "hpd:n:e:rOqR" opt; do
 	case $opt in
 		h)	usage; exit ;;
 		p)  use_pipeline=1; dstdir="$dir_pg" ;;
@@ -92,8 +91,10 @@ if [[ -n "$use_pipeline" || -n "$dstdir" ]]; then
 	fi
 	if [[ -n "$use_pipeline" ]]; then
 		echo "Working on images in pipeline dir, $dstdir/*"
-	elif [[ -n "$dstdir" ]]; then
-		echo "Working on images in given dir, $dstdir/*"
+	fi
+	if [[ -n "$dstdir" ]]; then
+		opts_dstdir=(${dstdir%%/}/)
+		echo "Working on images in given dir, ${opts_dstdir[@]}"
 	fi
 elif [[ ${#all_images} -lt 1 ]]; then
 	echo "No -d or -p and no images provided. Aborting." >&2
@@ -118,6 +119,7 @@ echo "${whie} exiftool -tagsFromFile \"$ref\" -m \\"
                                        echo "    -@ \"$fn_exif_tags_settable\" \\"
 ((${#opts_ext[@]}))                 && echo "    ${opts_ext[@]} \\"
 ((${#opts_recursive[@]}))           && echo "    ${opts_recursive[@]} \\"
+((${#opts_dstdir[@]}))              && echo "    ${opts_dstdir[@]} \\"
 ((${#opts_overwrite[@]}))           && echo "    ${opts_overwrite[@]} \\"
 ((${#opts_verbose[@]}))             && echo "    ${opts_verbose[@]} \\"
 ((${#opts_remove_orientation[@]}))  && echo "    ${opts_remove_orientation[@]} \\"
