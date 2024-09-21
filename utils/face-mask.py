@@ -31,7 +31,9 @@ args = parser.parse_args()
 # Load the FaceMesh model
 mp_face_mesh = mp.solutions.face_mesh
 #face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1)
-face_mesh = mp_face_mesh.FaceMesh(max_num_faces=1)
+face_mesh = mp_face_mesh.FaceMesh(max_num_faces=1,
+                                  refine_landmarks=True,
+                                  )
 
 # For drawing contours and stuff
 mp_drawing = mp.solutions.drawing_utils
@@ -39,28 +41,46 @@ mp_drawing_styles = mp.solutions.drawing_styles
 
 output_file = None
 
+# Outlines are drawn clockwise from the viewer's perspective,
+# and generally beginning at the left-most point.
 landmark_indices = {
     'nose_bridge': list(range(27, 31)),
-    'nose_tip': [100, 47, 114, 188, 122, 6, 351, 412, 
+    'perinasal_outline': [100, 47, 114, 188, 122, 6, 351, 412, 
                  343, 277, 355, 371, 423,
                  391, 393, 164, 167, 165, 206, 205, 101,
                  # Added for bridge
                  232, 233, 245, 193, 168, 417, 465, 357
                  ],
-    'right_nostril': list(range(98, 100)),
-    'left_nostril': list(range(105, 107)),
-    'right_eye': list(range(386, 398)),
-    'left_eye': list(range(263, 277)),
-    'upper_lip': list(range(312, 327)),
-    'lower_lip': list(range(375, 390))
-}
+    'nostril_r': list(range(98, 100)),
+    'nostril_l': list(range(105, 107)),
 
+    'eye_r_top': [33, 246, 161, 160, 159, 158, 157, 173, 133],
+    'eye_r_bottom': [33, 155, 154, 153, 145, 144, 163, 7],
+    'eye_r': [33, 246, 161, 160, 159, 158, 157, 173, 133] + \
+             [33, 155, 154, 153, 145, 144, 163, 7][1::][::-1],
+    'eye_l_top': [362, 398, 384, 385, 386, 387, 388, 466, 263],
+    'eye_l_bottom': [362, 382, 381, 380, 374, 373, 390, 249, 263],
+    'eye_l': [362, 398, 384, 385, 386, 387, 388, 466, 263] + \
+             [362, 382, 381, 380, 374, 373, 390, 249, 263][1::][::-1],
+
+    'upper_lip': list(range(312, 327)),
+    'lower_lip': list(range(375, 390)),
+
+    'eyebrow_l_midline': [285, 295, 282, 283, 276, 383],
+    'eyebrow_l_top': [285, 336, 296, 334, 293, 300],
+    'eyebrow_l_outline': [285, 336, 296, 334, 293, 300] + \
+                         [285, 336, 296, 334, 293, 300][1::][::-1],
+    'eyebrow_r_midline': [156, 46, 53, 52, 65, 55],
+    'eyebrow_r_top': [156, 70, 63, 105, 66, 107],
+    'eyebrow_r_outline': [156, 46, 53, 52, 65, 55] + \
+                         [70, 63, 105, 66, 107][1::][::-1],
+}
 
 feature_sets = {
 	'face': [landmark_indices.keys()],
-	'nose': ['nose_tip'],
-	# 'nose': ['nose_bridge', 'nose_tip', 'right_nostril', 'left_nostril'],
-	# 'nose': ['nose_tip'],
+	'nose': ['perinasal_outline'],
+	# 'nose': ['nose_bridge', 'perinasal_outline', 'nostril_r', 'nostril_l'],
+	# 'nose': ['perinasal_outline'],
 }
 
 def get_all_features():
@@ -201,7 +221,7 @@ for image_path in args.images:
 			x, y = int(landmark.x * image.shape[1]), \
 			       int(landmark.y * image.shape[0])
 			if i in feat_indices:
-				fg=(0,0,255)
+				fg=(150,230,255)
 				bg=(0,0,0)
 			else:
 				fg = rand_rgb()
